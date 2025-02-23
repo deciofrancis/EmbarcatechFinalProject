@@ -23,7 +23,7 @@ void init_pwm(uint gpio)
 {
     gpio_set_function(gpio, GPIO_FUNC_PWM);
     uint slice = pwm_gpio_to_slice_num(gpio);
-    pwm_set_wrap(slice, PWM_WRAP);
+    pwm_set_wrap(slice);
     pwm_set_enabled(slice, true);
 }
 
