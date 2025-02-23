@@ -35,18 +35,21 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(EmbarcatechFinalProject EmbarcatechFinalProject.c )
+add_executable(EmbarcatechFinalProject EmbarcatechFinalProject.c lib/ssd1306.c)
 
 pico_set_program_name(EmbarcatechFinalProject "EmbarcatechFinalProject")
 pico_set_program_version(EmbarcatechFinalProject "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(EmbarcatechFinalProject 0)
-pico_enable_stdio_usb(EmbarcatechFinalProject 0)
+pico_enable_stdio_usb(EmbarcatechFinalProject 1)
 
 # Add the standard library to the build
 target_link_libraries(EmbarcatechFinalProject
-        pico_stdlib)
+        pico_stdlib
+        hardware_pwm
+        hardware_i2c
+        hardware_adc)
 
 # Add the standard include files to the build
 target_include_directories(EmbarcatechFinalProject PRIVATE
@@ -55,7 +58,7 @@ target_include_directories(EmbarcatechFinalProject PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(EmbarcatechFinalProject 
-        
+    hardware_pio
         )
 
 pico_add_extra_outputs(EmbarcatechFinalProject)
