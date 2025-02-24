@@ -59,6 +59,40 @@ void set_led_color(float red, float green, float blue)
     pwm_set_gpio_level(LED_BLUE, (uint16_t)(blue * PWM_WRAP));
 }
 
+// Atualizar o display com informações atuais
+void update_display(void)
+{
+    char buf[32];
+    ssd1306_fill(&display, false);
+
+    // Título do display
+    ssd1306_draw_string(&display, "Production Timer", 10, 0);
+
+    // Exibir estado atual
+    const char *state_str = system_paused ? "PAUSED" : (current_state == STATE_MEASURING ? "MEASURING" : "READY");
+    ssd1306_draw_string(&display, state_str, 10, 16);
+
+    // Exibir medição atual se estiver medindo
+    if (current_state == STATE_MEASURING && !system_paused)
+    {
+        uint32_t current_time = to_ms_since_boot(get_absolute_time()) - measurement_start;
+        snprintf(buf, sizeof(buf), "Time: %lu ms", current_time);
+        ssd1306_draw_string(&display, buf, 10, 32);
+    }
+
+    // Exibir contagem de medições e média
+    snprintf(buf, sizeof(buf), "Count: %d/10", measurement_count);
+    ssd1306_draw_string(&display, buf, 10, 48);
+
+    if (current_average > 0)
+    {
+        snprintf(buf, sizeof(buf), "Avg: %.1f ms", current_average);
+        ssd1306_draw_string(&display, buf, 10, 56);
+    }
+
+    ssd1306_send_data(&display);
+}
+
 // Inicializa o hardware
 void init_hardware(void)
 {
@@ -70,6 +104,12 @@ void init_hardware(void)
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
     gpio_pull_up(I2C_SDA);
     gpio_pull_up(I2C_SCL);
+
+    // Inicializa o display
+    ssd1306_init(&display, 128, 64, false, DISPLAY_ADDR, I2C_PORT);
+    ssd1306_config(&display);
+    ssd1306_fill(&display, false);
+    ssd1306_send_data(&display);
 
     // Inicializa os buttões
     gpio_init(BUTTON_A);
@@ -89,9 +129,16 @@ int main()
 {
     init_hardware();
 
+    // Atualização inicial do display
+    update_display();
+
     while (true)
     {
-        printf("Hello, world!\n");
-        sleep_ms(1000);
+        if (current_state == STATE_MEASURING && !system_paused)
+        {
+            update_display();
+        }
+        sleep_ms(100);
     }
+    return 0;
 }
