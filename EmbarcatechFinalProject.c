@@ -24,7 +24,16 @@
 #define DEBOUNCE_TIME_MS 200
 #define AVERAGE_TOLERANCE 0.1
 
+// Estados do sistema
+typedef enum
+{
+    STATE_IDLE,
+    STATE_MEASURING,
+    STATE_PAUSED
+} SystemState;
+
 // Variaveis globais
+static volatile SystemState current_state = STATE_IDLE;
 static volatile uint32_t measurement_start = 0;
 static volatile uint32_t measurements[MAX_MEASUREMENTS];
 static volatile int measurement_count = 0;
@@ -134,6 +143,65 @@ void update_led_status(uint32_t time)
     }
 }
 
+// Manipula a interrupção do botão
+void button_callback(uint gpio, uint32_t events)
+{
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
+
+    if (current_time - last_button_time < DEBOUNCE_TIME_MS)
+    {
+        return;
+    }
+    last_button_time = current_time;
+
+    if (gpio == BUTTON_B)
+    {
+        system_paused = !system_paused;
+        if (system_paused)
+        {
+            set_led_color(0, 0, 0);
+            current_state = STATE_PAUSED;
+        }
+        else
+        {
+            current_state = STATE_IDLE;
+        }
+    }
+    else if (gpio == BUTTON_A && !system_paused)
+    {
+        switch (current_state)
+        {
+        case STATE_IDLE:
+            measurement_start = to_ms_since_boot(get_absolute_time());
+            current_state = STATE_MEASURING;
+            break;
+
+        case STATE_MEASURING:
+        {
+            uint32_t current_measurement = to_ms_since_boot(get_absolute_time()) - measurement_start;
+            measurements[measurement_count++] = current_measurement;
+
+            if (measurement_count >= MAX_MEASUREMENTS)
+            {
+                current_average = calculate_average();
+                measurement_count = 0;
+            }
+            else
+            {
+                current_average = calculate_average();
+            }
+
+            update_led_status(current_measurement);
+            current_state = STATE_IDLE;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    update_display();
+}
+
 // Inicializa o hardware
 void init_hardware(void)
 {
@@ -164,6 +232,10 @@ void init_hardware(void)
     init_pwm(LED_RED);
     init_pwm(LED_GREEN);
     init_pwm(LED_BLUE);
+
+    // Configura a interrupções do botão
+    gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &button_callback);
+    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &button_callback);
 }
 
 int main()
