@@ -40,6 +40,7 @@ static volatile int measurement_count = 0;
 static volatile uint32_t last_button_time = 0;
 static volatile float current_average = 0;
 static volatile bool system_paused = false;
+static volatile bool all_measurements_completed = false;
 static ssd1306_t display;
 
 // Prototipos das funções
@@ -99,6 +100,18 @@ void update_display(void)
         ssd1306_draw_string(&display, buf, 10, 56);
     }
 
+    // Exibir estado do LED se todas as medições estiverem completas
+    if (all_measurements_completed && current_average > 0)
+    {
+        char *led_status = "LED: ";
+        if (measurements[measurement_count - 1] < current_average * (1.0 - AVERAGE_TOLERANCE))
+            ssd1306_draw_string(&display, "LED: FASTER", 64, 48);
+        else if (measurements[measurement_count - 1] > current_average * (1.0 + AVERAGE_TOLERANCE))
+            ssd1306_draw_string(&display, "LED: SLOWER", 64, 48);
+        else
+            ssd1306_draw_string(&display, "LED: AVERAGE", 64, 48);
+    }
+
     ssd1306_send_data(&display);
 }
 
@@ -119,7 +132,8 @@ float calculate_average(void)
 // Atualizar LED com base na medição atual em comparação com a média
 void update_led_status(uint32_t time)
 {
-    if (current_average == 0 || measurement_count < 2)
+    // Desliga o LED se não tiver completado todas as medições
+    if (!all_measurements_completed)
     {
         set_led_color(0, 0, 0);
         return;
@@ -184,14 +198,18 @@ void button_callback(uint gpio, uint32_t events)
             if (measurement_count >= MAX_MEASUREMENTS)
             {
                 current_average = calculate_average();
-                measurement_count = 0;
+                all_measurements_completed = true;
+                // Atualize o LED somente após todas as medições
+                update_led_status(current_measurement);
             }
             else
             {
                 current_average = calculate_average();
+                // Certifique-se de desligar o LED enquanto estiver coletando
+                set_led_color(0, 0, 0);
+                all_measurements_completed = false;
             }
 
-            update_led_status(current_measurement);
             current_state = STATE_IDLE;
             break;
         }
@@ -236,6 +254,10 @@ void init_hardware(void)
     // Configura a interrupções do botão
     gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &button_callback);
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &button_callback);
+
+    // Certifique-se de que o LED esteja desligado no início
+    set_led_color(0, 0, 0);
+    all_measurements_completed = false;
 }
 
 int main()
