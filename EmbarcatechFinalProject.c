@@ -93,6 +93,47 @@ void update_display(void)
     ssd1306_send_data(&display);
 }
 
+// Calcula média das medições
+float calculate_average(void)
+{
+    if (measurement_count == 0)
+        return 0;
+
+    uint32_t sum = 0;
+    for (int i = 0; i < measurement_count; i++)
+    {
+        sum += measurements[i];
+    }
+    return (float)sum / measurement_count;
+}
+
+// Atualizar LED com base na medição atual em comparação com a média
+void update_led_status(uint32_t time)
+{
+    if (current_average == 0 || measurement_count < 2)
+    {
+        set_led_color(0, 0, 0);
+        return;
+    }
+
+    float time_f = (float)time;
+    float lower_bound = current_average * (1.0 - AVERAGE_TOLERANCE);
+    float upper_bound = current_average * (1.0 + AVERAGE_TOLERANCE);
+
+    if (time_f < lower_bound)
+    {
+        set_led_color(0, 1, 0); // Verde - melhor que a média
+    }
+    else if (time_f > upper_bound)
+    {
+        set_led_color(1, 0, 0); // Vermelho - pior que a média
+    }
+    else
+    {
+        set_led_color(0, 0, 1); // Azul - dentro da faixa média
+    }
+}
+
 // Inicializa o hardware
 void init_hardware(void)
 {
